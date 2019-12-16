@@ -74,8 +74,10 @@ func (producer *Producer) Put(ctx context.Context, tube string, body []byte, par
 	ctx, span := trace.StartSpan(ctx, "github.com/prep/beanstalk/Producer.Put")
 	defer span.End()
 
+	_, span = trace.StartSpan(ctx, "github.com/prep/beanstalk/Producer.Put.Lock")
 	producer.mu.Lock()
 	defer producer.mu.Unlock()
+	span.End()
 
 	// If this producer isn't connected, return ErrDisconnected.
 	if producer.conn == nil {
@@ -84,10 +86,16 @@ func (producer *Producer) Put(ctx context.Context, tube string, body []byte, par
 
 	// Insert the job. If this fails, mark the connection as disconnected and
 	// report the error to handleIO.
+	ctx, span = trace.StartSpan(ctx, "github.com/prep/beanstalk/Producer.Put.Put")
 	id, err := producer.conn.Put(ctx, tube, body, params)
+	span.End()
+
 	if err != nil {
 		producer.conn = nil
+
+		_, span = trace.StartSpan(ctx, "github.com/prep/beanstalk/Producer.Put.errC")
 		producer.errC <- err
+		span.End()
 	}
 
 	return id, err

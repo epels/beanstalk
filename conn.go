@@ -266,9 +266,6 @@ func (conn *Conn) release(ctx context.Context, job *Job, priority uint32, delay 
 // timeout. If no job could be reserved, this function will return without a
 // job or error.
 func (conn *Conn) ReserveWithTimeout(ctx context.Context, timeout time.Duration) (*Job, error) {
-	ctx, span := trace.StartSpan(ctx, "github.com/prep/beanstalk/Conn.ReserveWithTimeout")
-	defer span.End()
-
 	conn.mu.Lock()
 	defer conn.mu.Unlock()
 

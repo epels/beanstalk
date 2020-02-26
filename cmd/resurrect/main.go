@@ -11,19 +11,25 @@ import (
 	"github.com/prep/beanstalk"
 )
 
+// limit is the maximum number of jobs per tube to handle for delete and kick.
+const limit = 100
+
 var (
 	help = flag.Bool("help", false, "Display usage information")
 	tube = flag.String("tube", "", "The tube to operate on (default is all tubes)")
 	uri  = flag.String("uri", "beanstalk://localhost:11300", "The URI of the beanstalk server")
 )
 
-// delete all the buried jobs in the specified tubes.
+// delete min(nBuried, limit) buried jobs per tube.
 func delete(ctx context.Context, conn *beanstalk.Conn, tubes []beanstalk.TubeStats) error {
 	for _, tube := range tubes {
 		log.Printf("Deleting buried jobs in %s", tube.Name)
 
 		var count int
 		for {
+			if count >= limit {
+				break
+			}
 			job, err := conn.PeekBuried(ctx, tube.Name)
 			if err != nil {
 				return err
@@ -46,12 +52,18 @@ func delete(ctx context.Context, conn *beanstalk.Conn, tubes []beanstalk.TubeSta
 	return nil
 }
 
-// kick all the buried jobs in the specified tubes.
+// kick min(nBuried, limit) buried jobs per tube.
 func kick(ctx context.Context, conn *beanstalk.Conn, tubes []beanstalk.TubeStats) error {
 	for _, tube := range tubes {
+		bound := int(tube.BuriedJobs)
+		// Better not use math.Min as it uses float64 operands.
+		if limit < bound {
+			bound = limit
+		}
+
 		log.Printf("Kicking buried jobs in %s", tube.Name)
 
-		count, err := conn.Kick(ctx, tube.Name, int(tube.BuriedJobs))
+		count, err := conn.Kick(ctx, tube.Name, bound)
 		if err != nil {
 			return err
 		}
